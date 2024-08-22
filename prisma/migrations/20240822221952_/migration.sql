@@ -28,7 +28,7 @@ CREATE TABLE "Seat" (
     "heldUntil" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "version" INTEGER NOT NULL DEFAULT 0,
+    "version" INTEGER NOT NULL,
 
     CONSTRAINT "Seat_pkey" PRIMARY KEY ("id")
 );

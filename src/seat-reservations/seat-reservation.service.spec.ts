@@ -16,7 +16,7 @@ describe('SeatReservationService', () => {
           useValue: {
             seat: {
               update: jest.fn(),
-              findUnique: jest.fn(),
+              findFirst: jest.fn(),
             },
           },
         },
@@ -33,33 +33,42 @@ describe('SeatReservationService', () => {
 
   describe('holdSeat', () => {
     it('should hold an available seat', async () => {
-      const mockSeat = { id: '1', status: 'held', userId: '1' };
-      (prismaService.seat.update as jest.Mock).mockResolvedValue(mockSeat);
+      const mockSeat = { id: '1', status: 'available', version: 1 };
+      const updatedSeat = { ...mockSeat, status: 'held', userId: '1', heldUntil: new Date() };
+
+      (prismaService.seat.findFirst as jest.Mock).mockResolvedValue(mockSeat);
+      (prismaService.seat.update as jest.Mock).mockResolvedValue(updatedSeat);
 
       const result = await service.holdSeat('event1', 1, '1');
-      expect(result).toEqual(mockSeat);
-      expect(prismaService.seat.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            OR: [
-              { status: 'available' },
-              { status: 'held', heldUntil: expect.any(Object) },
-            ],
-          }),
-          data: expect.objectContaining({
-            status: 'held',
-            userId: '1',
-            heldUntil: expect.any(Date),
-          }),
-        }),
-      );
+      expect(result).toEqual(updatedSeat);
+      expect(prismaService.seat.findFirst).toHaveBeenCalledWith({
+        where: {
+          eventId: 'event1',
+          status: 'available',
+          userId: null,
+        },
+        orderBy: {
+          number: 'asc',
+        },
+      });
+      expect(prismaService.seat.update).toHaveBeenCalledWith({
+        where: {
+          id: mockSeat.id,
+          version: mockSeat.version,
+        },
+        data: {
+          status: 'held',
+          userId: '1',
+          heldUntil: expect.any(Date),
+          version: {
+            increment: 1,
+          },
+        },
+      });
     });
 
     it('should throw NotFoundException if seat does not exist', async () => {
-      const error = new Error('Not found');
-      (error as any).code = 'P2025';
-      (prismaService.seat.update as jest.Mock).mockRejectedValue(error);
-      (prismaService.seat.findUnique as jest.Mock).mockResolvedValue(null);
+      (prismaService.seat.findFirst as jest.Mock).mockResolvedValue(null);
 
       await expect(service.holdSeat('event1', 1, '1')).rejects.toThrow(
         NotFoundException,
@@ -67,13 +76,9 @@ describe('SeatReservationService', () => {
     });
 
     it('should throw ConflictException if seat is already held', async () => {
-      const error = new Error('Not found');
-      (error as any).code = 'P2025';
-      (prismaService.seat.update as jest.Mock).mockRejectedValue(error);
-      (prismaService.seat.findUnique as jest.Mock).mockResolvedValue({
-        id: '1',
-        status: 'held',
-      });
+      const mockSeat = { id: '1', status: 'held', version: 1 };
+      (prismaService.seat.findFirst as jest.Mock).mockResolvedValue(mockSeat);
+      (prismaService.seat.update as jest.Mock).mockRejectedValue({ code: 'P2002' });
 
       await expect(service.holdSeat('event1', 1, '1')).rejects.toThrow(
         ConflictException,
@@ -83,67 +88,85 @@ describe('SeatReservationService', () => {
 
   describe('reserveSeat', () => {
     it('should reserve a held seat', async () => {
-      const mockSeat = { id: '1', status: 'reserved', userId: '1' };
-      (prismaService.seat.update as jest.Mock).mockResolvedValue(mockSeat);
+      const mockSeat = { id: '1', status: 'held', userId: '1', version: 1, heldUntil: new Date(Date.now() + 60000) };
+      const updatedSeat = { ...mockSeat, status: 'reserved', heldUntil: null };
+
+      (prismaService.seat.findFirst as jest.Mock).mockResolvedValue(mockSeat);
+      (prismaService.seat.update as jest.Mock).mockResolvedValue(updatedSeat);
 
       const result = await service.reserveSeat('event1', 1, '1');
-      expect(result).toEqual(mockSeat);
-      expect(prismaService.seat.update).toHaveBeenCalledWith({
+      expect(result).toEqual(updatedSeat);
+      expect(prismaService.seat.findFirst).toHaveBeenCalledWith({
         where: {
-          eventId_number: {
-            eventId: 'event1',
-            number: 1,
-          },
+          eventId: 'event1',
+          number: 1,
           status: 'held',
           userId: '1',
           heldUntil: {
             gt: expect.any(Date),
           },
         },
+      });
+      expect(prismaService.seat.update).toHaveBeenCalledWith({
+        where: {
+          id: mockSeat.id,
+          version: mockSeat.version,
+        },
         data: {
           status: 'reserved',
           heldUntil: null,
+          version: {
+            increment: 1,
+          },
         },
       });
     });
 
     it('should throw ConflictException if seat is not available for reservation', async () => {
-      (prismaService.seat.update as jest.Mock).mockRejectedValue(new Error());
+      (prismaService.seat.findFirst as jest.Mock).mockResolvedValue(null);
 
       await expect(service.reserveSeat('event1', 1, '1')).rejects.toThrow(
-        ConflictException,
+        NotFoundException,
       );
     });
   });
 
   describe('releaseSeat', () => {
     it('should release a held or reserved seat', async () => {
-      const mockSeat = { id: '1', status: 'available', userId: null };
-      (prismaService.seat.update as jest.Mock).mockResolvedValue(mockSeat);
+      const mockSeat = { id: '1', status: 'held', userId: '1', version: 1 };
+      const updatedSeat = { ...mockSeat, status: 'available', userId: null, heldUntil: null };
+
+      (prismaService.seat.findFirst as jest.Mock).mockResolvedValue(mockSeat);
+      (prismaService.seat.update as jest.Mock).mockResolvedValue(updatedSeat);
 
       const result = await service.releaseSeat('event1', 1, '1');
-      expect(result).toEqual(mockSeat);
+      expect(result).toEqual(updatedSeat);
+      expect(prismaService.seat.findFirst).toHaveBeenCalledWith({
+        where: {
+          eventId: 'event1',
+          number: 1,
+          userId: '1',
+          OR: [{ status: 'held' }, { status: 'reserved' }],
+        },
+      });
       expect(prismaService.seat.update).toHaveBeenCalledWith({
         where: {
-          eventId_number: {
-            eventId: 'event1',
-            number: 1,
-          },
-          OR: [
-            { status: 'held', userId: '1' },
-            { status: 'reserved', userId: '1' },
-          ],
+          id: mockSeat.id,
+          version: mockSeat.version,
         },
         data: {
           status: 'available',
           userId: null,
           heldUntil: null,
+          version: {
+            increment: 1,
+          },
         },
       });
     });
 
     it('should throw NotFoundException if seat is not found or not held/reserved by the user', async () => {
-      (prismaService.seat.update as jest.Mock).mockRejectedValue(new Error());
+      (prismaService.seat.findFirst as jest.Mock).mockResolvedValue(null);
 
       await expect(service.releaseSeat('event1', 1, '1')).rejects.toThrow(
         NotFoundException,

@@ -1,24 +1,23 @@
 version: '3.8'
-
 services:
   app:
     build: .
     ports:
       - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/event_reservation?schema=public
     depends_on:
       - db
-    environment:
-      DATABASE_URL: "postgresql://user:password@db:5432/mydatabase?schema=public"
+    command: sh -c "npx prisma migrate deploy && npm run start:dev"
     volumes:
-      - .:/usr/src/app
-      - /usr/src/app/node_modules
-
+       - ./:/usr/src/app
+       - /usr/src/app/node_modules
   db:
-    image: postgres:13
+    image: postgres:16-alpine
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: mydatabase
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=event_reservation
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
