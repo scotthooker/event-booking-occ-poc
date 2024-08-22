@@ -1,0 +1,46 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String?
+  seats     Seat[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Event {
+  id        String   @id @default(uuid())
+  name      String
+  seats     Seat[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+}
+
+model Seat {
+  id         String   @id @default(uuid())
+  number     Int
+  status     String   // 'available', 'held', 'reserved'
+  event      Event    @relation(fields: [eventId], references: [id])
+  eventId    String
+  user       User?    @relation(fields: [userId], references: [id])
+  userId     String?
+  heldUntil  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  version    Int 
+  @@allow("read", true)
+  @@allow("update", future().version == 1)
+
+  @@unique([eventId, number])
+  @@index([status, eventId])
+  @@index([userId, eventId])
+}
