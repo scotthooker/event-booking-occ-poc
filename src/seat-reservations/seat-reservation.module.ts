@@ -1,19 +1,12 @@
 import { Module } from '@nestjs/common';
+import { RedisModule } from '../redis/redis.module';
+import { PrismaModule } from '../prisma/prisma.module';
 import { SeatReservationService } from './seat-reservation.service';
-import { SeatReservationController } from './seat-reservation.controller';
 import { SeatReservationConfigService } from './seat-reservation-config.service';
-import { SeatReservationBenchmarkService } from './seat-reservation-benchmark.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { RedisService } from '../redis/redis.service';
 
 @Module({
-  controllers: [SeatReservationController],
-  providers: [
-    SeatReservationService,
-    SeatReservationConfigService,
-    SeatReservationBenchmarkService,
-    PrismaService,
-    RedisService,
-  ],
+  imports: [RedisModule, PrismaModule],
+  providers: [SeatReservationService, SeatReservationConfigService],
+  exports: [SeatReservationService], // Added this line
 })
 export class SeatReservationModule {}

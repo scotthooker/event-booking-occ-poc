@@ -1,42 +1,37 @@
-
-
-import { Injectable, Inject, Logger, OnModuleDestroy } from '@nestjs/common';
-import Redis from 'ioredis';
+import { Inject, Injectable } from '@nestjs/common';
+import { RedisClient } from './redis.provider';
 
 @Injectable()
-export class RedisService implements OnModuleDestroy {
-    private readonly logger = new Logger(RedisService.name);
+export class RedisService {
+    public constructor(
+      @Inject('REDIS_CLIENT')
+      private readonly client: RedisClient,
+    ) {}
 
-    constructor(@Inject('RedisClient') private readonly redisClient: Redis) {}
-
-    async onModuleDestroy() {
-        await this.redisClient.quit();
-        this.logger.log('Redis client disconnected');
-    }
 
     async get(prefix: string, key: string): Promise<string | null> {
-        return this.redisClient.get(`${prefix}:${key}`);
+        return this.client.get(`${prefix}:${key}`);
     }
 
     async set(prefix: string, key: string, value: string): Promise<void> {
-        await this.redisClient.set(`${prefix}:${key}`, value);
+        await this.client.set(`${prefix}:${key}`, value);
     }
 
     async delete(prefix: string, key: string): Promise<void> {
-        await this.redisClient.del(`${prefix}:${key}`);
+        await this.client.del(`${prefix}:${key}`);
     }
 
     async setWithExpiry(prefix: string, key: string, value: string, expiry: number): Promise<void> {
-        await this.redisClient.set(`${prefix}:${key}`, value, 'EX', expiry);
+        await this.client.set(`${prefix}:${key}`, value, 'EX', expiry);
     }
 
     async holdSeat(eventId: string, seatNumber: number, userId: string, expirationSeconds: number): Promise<boolean> {
         const key = `hold:${eventId}:${seatNumber}`;
         try {
-            const result = await this.redisClient.set(key, userId, 'EX', expirationSeconds, 'NX');
+            const result = await this.client.set(key, userId, 'EX', expirationSeconds, 'NX');
             return result === 'OK';
         } catch (error) {
-            this.logger.error(`Error holding seat: ${error.message}`, error.stack);
+            // this.logger.error(`Error holding seat: ${error.message}`, error.stack);
             throw error;
         }
     }
@@ -44,9 +39,9 @@ export class RedisService implements OnModuleDestroy {
     async getHoldingUser(eventId: string, seatNumber: number): Promise<string | null> {
         const key = `hold:${eventId}:${seatNumber}`;
         try {
-            return await this.redisClient.get(key);
+            return await this.client.get(key);
         } catch (error) {
-            this.logger.error(`Error getting holding user: ${error.message}`, error.stack);
+            // this.logger.error(`Error getting holding user: ${error.message}`, error.stack);
             throw error;
         }
     }
@@ -54,26 +49,26 @@ export class RedisService implements OnModuleDestroy {
     async releaseSeat(eventId: string, seatNumber: number): Promise<boolean> {
         const key = `hold:${eventId}:${seatNumber}`;
         try {
-            const result = await this.redisClient.del(key);
+            const result = await this.client.del(key);
             return result === 1;
         } catch (error) {
-            this.logger.error(`Error releasing seat: ${error.message}`, error.stack);
+            // this.logger.error(`Error releasing seat: ${error.message}`, error.stack);
             throw error;
         }
     }
 
     async isConnectionAlive(): Promise<boolean> {
         try {
-            await this.redisClient.ping();
+            await this.client.ping();
             return true;
         } catch (error) {
-            this.logger.error('Redis connection check failed', error.stack);
+            // this.logger.error('Redis connection check failed', error.stack);
             return false;
         }
     }
 
     async del(key: string): Promise<number> {
         // Implementation details
-        return this.redisClient.del(key);
+        return this.client.del(key);
     }
 }
