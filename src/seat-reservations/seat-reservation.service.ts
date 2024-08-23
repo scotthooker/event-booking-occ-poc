@@ -1,5 +1,3 @@
-
-
 import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -35,7 +33,42 @@ export class SeatReservationService {
 
   async releaseSeat(eventId: string, seatNumber: number, userId: string) {
     if (this.configService.getStrategy() === 'redis') {
-      return this.releaseSeatRedis(eventId, seatNumber, userId);
+      try {
+        const holdingUser = await this.redisService.getHoldingUser(eventId, seatNumber);
+        if (holdingUser !== userId) {
+          throw new NotFoundException('Seat not found or not held/reserved by the user');
+        }
+
+        const released = await this.redisService.releaseSeat(eventId, seatNumber);
+        if (!released) {
+          throw new ConflictException('Failed to release seat in Redis');
+        }
+
+        const updatedSeat = await this.prisma.seat.update({
+          where: {
+            eventId_number: {
+              eventId,
+              number: seatNumber,
+            },
+          },
+          data: {
+            status: 'available',
+            userId: null,
+            heldUntil: null,
+            version: {
+              increment: 1,
+            },
+          },
+        });
+
+        this.logger.log(`Seat ${seatNumber} released by user ${userId} in event ${eventId}`);
+        return updatedSeat;
+      } catch (error) {
+        if (error instanceof NotFoundException) {
+          throw error;
+        }
+        throw new ConflictException('Failed to release seat in Redis');
+      }
     } else {
       return this.releaseSeatOCC(eventId, seatNumber, userId);
     }
@@ -44,13 +77,12 @@ export class SeatReservationService {
   private async holdSeatRedis(eventId: string, seatNumber: number, userId: string) {
     const seat = await this.prisma.seat.findFirst({
       where: {
-        eventId,
+        eventId: eventId,
         number: seatNumber,
-        status: 'available',
       },
     });
 
-    if (!seat) {
+    if (!seat || seat.status !== 'available') {
       throw new NotFoundException('Seat not available');
     }
 
@@ -60,7 +92,12 @@ export class SeatReservationService {
     }
 
     const updatedSeat = await this.prisma.seat.update({
-      where: { id: seat.id },
+      where: {
+        eventId_number: {
+          eventId,
+          number: seatNumber,
+        },
+      },
       data: {
         status: 'held',
         userId,
@@ -114,7 +151,7 @@ export class SeatReservationService {
   private async reserveSeatRedis(eventId: string, seatNumber: number, userId: string) {
     const holdingUserId = await this.redisService.getHoldingUser(eventId, seatNumber);
     if (holdingUserId !== userId) {
-      throw new ConflictException('Seat is not held by this user');
+      throw new NotFoundException('Seat not found or not available for reservation');
     }
 
     const seat = await this.prisma.seat.findFirst({
@@ -153,7 +190,7 @@ export class SeatReservationService {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('Seat reservation failed due to concurrent update');
       }
-      throw error;
+      throw new ConflictException('Failed to release seat in Redis');
     }
   }
 
@@ -194,53 +231,6 @@ export class SeatReservationService {
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('Seat reservation failed due to concurrent update');
-      }
-      throw error;
-    }
-  }
-
-  private async releaseSeatRedis(eventId: string, seatNumber: number, userId: string) {
-    const holdingUserId = await this.redisService.getHoldingUser(eventId, seatNumber);
-    if (holdingUserId === userId) {
-      await this.redisService.releaseSeat(eventId, seatNumber);
-      this.logger.log(`Hold released for seat ${seatNumber} by user ${userId} in event ${eventId}`);
-      return { status: 'available' };
-    }
-
-    const seat = await this.prisma.seat.findFirst({
-      where: {
-        eventId,
-        number: seatNumber,
-        userId,
-        status: 'reserved',
-      },
-    });
-
-    if (!seat) {
-      throw new NotFoundException('Seat not found or not reserved by the user');
-    }
-
-    try {
-      const updatedSeat = await this.prisma.seat.update({
-        where: {
-          id: seat.id,
-          version: seat.version,
-        },
-        data: {
-          status: 'available',
-          userId: null,
-          heldUntil: null,
-          version: {
-            increment: 1,
-          },
-        },
-      });
-
-      this.logger.log(`Seat ${seatNumber} released by user ${userId} in event ${eventId}`);
-      return updatedSeat;
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Seat release failed due to concurrent update');
       }
       throw error;
     }

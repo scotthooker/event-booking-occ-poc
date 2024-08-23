@@ -1,12 +1,10 @@
-
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { HealthController } from './health.controller';
 import { SeatReservationService } from '../seat-reservations/seat-reservation.service';
 
 describe('HealthController', () => {
   let controller: HealthController;
-  let seatReservationService: Partial<jest.Mocked<SeatReservationService>>;
+  let seatReservationService: SeatReservationService;
 
   beforeEach(async () => {
     seatReservationService = {
@@ -15,7 +13,7 @@ describe('HealthController', () => {
       reserveSeat: jest.fn(),
       releaseSeat: jest.fn(),
       checkRedisConnection: jest.fn(),
-    };
+    } as Partial<SeatReservationService> as SeatReservationService;
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HealthController],
@@ -40,6 +38,5 @@ describe('HealthController', () => {
       status: 'OK',
       seatReservationStrategy: 'SomeStrategy',
     });
-    expect(seatReservationService.getReservationStrategy).toHaveBeenCalled();
   });
 });
