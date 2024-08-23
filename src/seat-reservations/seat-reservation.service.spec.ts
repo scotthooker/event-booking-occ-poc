@@ -1,5 +1,4 @@
 
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { SeatReservationService } from './seat-reservation.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -7,10 +6,18 @@ import { RedisService } from '../redis/redis.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { SeatReservationConfigService } from './seat-reservation-config.service';
+import { MockedObject } from 'jest-mock';
+
+type MockPrismaService = MockedObject<PrismaService> & {
+  seat: {
+    findFirst: jest.Mock;
+    update: jest.Mock;
+  }
+};
 
 describe('SeatReservationService', () => {
   let service: SeatReservationService;
-  let prismaService: jest.Mocked<PrismaService>;
+  let prismaService: MockPrismaService;
   let redisService: jest.Mocked<RedisService>;
   let configService: jest.Mocked<SeatReservationConfigService>;
 
@@ -56,10 +63,10 @@ describe('SeatReservationService', () => {
         }).compile();
 
         service = module.get<SeatReservationService>(SeatReservationService);
-        prismaService = module.get(PrismaService);
-        configService = module.get(SeatReservationConfigService);
+        prismaService = module.get(PrismaService) as unknown as MockPrismaService;
+        configService = module.get(SeatReservationConfigService) as jest.Mocked<SeatReservationConfigService>;
         if (useRedis) {
-          redisService = module.get(RedisService);
+          redisService = module.get(RedisService) as jest.Mocked<RedisService>;
         }
       });
 
