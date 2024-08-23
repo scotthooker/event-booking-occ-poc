@@ -1,4 +1,4 @@
-// @@filename: src/redis/redis.client.factory.ts
+
 
 import { FactoryProvider, Logger } from '@nestjs/common';
 import Redis, { RedisOptions } from 'ioredis';

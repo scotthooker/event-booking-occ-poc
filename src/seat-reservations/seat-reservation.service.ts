@@ -1,4 +1,4 @@
-// @@filename: src/seat-reservations/seat-reservation.service.ts
+
 
 import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -59,8 +59,17 @@ export class SeatReservationService {
       throw new ConflictException('Seat is already held');
     }
 
+    const updatedSeat = await this.prisma.seat.update({
+      where: { id: seat.id },
+      data: {
+        status: 'held',
+        userId,
+        heldUntil: new Date(Date.now() + this.holdDuration * 1000),
+      },
+    });
+
     this.logger.log(`Seat ${seatNumber} held for user ${userId} in event ${eventId}`);
-    return { ...seat, status: 'held', userId };
+    return updatedSeat;
   }
 
   private async holdSeatOCC(eventId: string, seatNumber: number, userId: string) {
@@ -108,18 +117,31 @@ export class SeatReservationService {
       throw new ConflictException('Seat is not held by this user');
     }
 
+    const seat = await this.prisma.seat.findFirst({
+      where: {
+        eventId,
+        number: seatNumber,
+        status: 'held',
+        userId,
+      },
+    });
+
+    if (!seat) {
+      throw new NotFoundException('Seat not found or not available for reservation');
+    }
+
     try {
       const updatedSeat = await this.prisma.seat.update({
         where: {
-          eventId_number: {
-            eventId,
-            number: seatNumber,
-          },
-          status: 'available',
+          id: seat.id,
+          version: seat.version,
         },
         data: {
           status: 'reserved',
-          userId,
+          heldUntil: null,
+          version: {
+            increment: 1,
+          },
         },
       });
 
@@ -202,10 +224,15 @@ export class SeatReservationService {
       const updatedSeat = await this.prisma.seat.update({
         where: {
           id: seat.id,
+          version: seat.version,
         },
         data: {
           status: 'available',
           userId: null,
+          heldUntil: null,
+          version: {
+            increment: 1,
+          },
         },
       });
 
@@ -257,6 +284,10 @@ export class SeatReservationService {
       }
       throw error;
     }
+  }
+
+  async getReservationStrategy(): Promise<string> {
+    return this.configService.getStrategy();
   }
 
   async checkRedisConnection(): Promise<boolean> {

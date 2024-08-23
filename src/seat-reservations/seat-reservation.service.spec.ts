@@ -1,4 +1,4 @@
-// @@filename: src/seat-reservations/seat-reservation.service.spec.ts
+
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { SeatReservationService } from './seat-reservation.service';
@@ -10,9 +10,9 @@ import { SeatReservationConfigService } from './seat-reservation-config.service'
 
 describe('SeatReservationService', () => {
   let service: SeatReservationService;
-  let prismaService: PrismaService;
-  let redisService: RedisService;
-  let configService: SeatReservationConfigService;
+  let prismaService: jest.Mocked<PrismaService>;
+  let redisService: jest.Mocked<RedisService>;
+  let configService: jest.Mocked<SeatReservationConfigService>;
 
   const testCases = [
     { name: 'without Redis', useRedis: false },
@@ -56,10 +56,10 @@ describe('SeatReservationService', () => {
         }).compile();
 
         service = module.get<SeatReservationService>(SeatReservationService);
-        prismaService = module.get<PrismaService>(PrismaService);
-        configService = module.get<SeatReservationConfigService>(SeatReservationConfigService);
+        prismaService = module.get(PrismaService);
+        configService = module.get(SeatReservationConfigService);
         if (useRedis) {
-          redisService = module.get<RedisService>(RedisService);
+          redisService = module.get(RedisService);
         }
       });
 
@@ -72,11 +72,11 @@ describe('SeatReservationService', () => {
           const mockSeat = { id: '1', status: 'available', version: 1 };
           const mockUpdatedSeat = { ...mockSeat, status: 'held', userId: 'user1', heldUntil: expect.any(Date) };
 
-          (prismaService.seat.findFirst as jest.Mock).mockResolvedValue(mockSeat);
-          (prismaService.seat.update as jest.Mock).mockResolvedValue(mockUpdatedSeat);
+          prismaService.seat.findFirst.mockResolvedValue(mockSeat);
+          prismaService.seat.update.mockResolvedValue(mockUpdatedSeat);
 
           if (useRedis) {
-            (redisService.holdSeat as jest.Mock).mockResolvedValue(true);
+            redisService.holdSeat.mockResolvedValue(true);
           }
 
           const result = await service.holdSeat('event1', 1, 'user1');
@@ -111,15 +111,15 @@ describe('SeatReservationService', () => {
         });
 
         it('should throw NotFoundException when seat is not available', async () => {
-          (prismaService.seat.findFirst as jest.Mock).mockResolvedValue(null);
+          prismaService.seat.findFirst.mockResolvedValue(null);
 
           await expect(service.holdSeat('event1', 1, 'user1')).rejects.toThrow(NotFoundException);
         });
 
         it('should throw ConflictException when seat is no longer available', async () => {
           const mockSeat = { id: '1', status: 'available', version: 1 };
-          (prismaService.seat.findFirst as jest.Mock).mockResolvedValue(mockSeat);
-          (prismaService.seat.update as jest.Mock).mockRejectedValue(
+          prismaService.seat.findFirst.mockResolvedValue(mockSeat);
+          prismaService.seat.update.mockRejectedValue(
             new Prisma.PrismaClientKnownRequestError('', { code: 'P2002', clientVersion: '' })
           );
 
@@ -129,8 +129,8 @@ describe('SeatReservationService', () => {
         if (useRedis) {
           it('should throw ConflictException when Redis fails to set key', async () => {
             const mockSeat = { id: '1', status: 'available', version: 1 };
-            (prismaService.seat.findFirst as jest.Mock).mockResolvedValue(mockSeat);
-            (redisService.holdSeat as jest.Mock).mockResolvedValue(false);
+            prismaService.seat.findFirst.mockResolvedValue(mockSeat);
+            redisService.holdSeat.mockResolvedValue(false);
 
             await expect(service.holdSeat('event1', 1, 'user1')).rejects.toThrow(ConflictException);
           });
@@ -142,12 +142,12 @@ describe('SeatReservationService', () => {
           const mockSeat = { id: '1', status: 'held', userId: '1', version: 1, heldUntil: new Date(Date.now() + 60000) };
           const updatedSeat = { ...mockSeat, status: 'reserved', heldUntil: null };
 
-          (prismaService.seat.findFirst as jest.Mock).mockResolvedValue(mockSeat);
-          (prismaService.seat.update as jest.Mock).mockResolvedValue(updatedSeat);
+          prismaService.seat.findFirst.mockResolvedValue(mockSeat);
+          prismaService.seat.update.mockResolvedValue(updatedSeat);
 
           if (useRedis) {
-            (redisService.getHoldingUser as jest.Mock).mockResolvedValue('1');
-            (redisService.releaseSeat as jest.Mock).mockResolvedValue(true);
+            redisService.getHoldingUser.mockResolvedValue('1');
+            redisService.releaseSeat.mockResolvedValue(true);
           }
 
           const result = await service.reserveSeat('event1', 1, '1');
@@ -174,7 +174,11 @@ describe('SeatReservationService', () => {
         });
 
         it('should throw NotFoundException if seat is not available for reservation', async () => {
-          (prismaService.seat.findFirst as jest.Mock).mockResolvedValue(null);
+          prismaService.seat.findFirst.mockResolvedValue(null);
+
+          if (useRedis) {
+            redisService.getHoldingUser.mockResolvedValue(null);
+          }
 
           await expect(service.reserveSeat('event1', 1, '1')).rejects.toThrow(
             NotFoundException,
@@ -184,10 +188,10 @@ describe('SeatReservationService', () => {
         if (useRedis) {
           it('should throw ConflictException when Redis fails to remove key', async () => {
             const mockSeat = { id: '1', status: 'held', userId: '1', version: 1, heldUntil: new Date(Date.now() + 60000) };
-            (prismaService.seat.findFirst as jest.Mock).mockResolvedValue(mockSeat);
-            (prismaService.seat.update as jest.Mock).mockResolvedValue({ ...mockSeat, status: 'reserved' });
-            (redisService.getHoldingUser as jest.Mock).mockResolvedValue('1');
-            (redisService.releaseSeat as jest.Mock).mockRejectedValue(new Error('Redis error'));
+            prismaService.seat.findFirst.mockResolvedValue(mockSeat);
+            prismaService.seat.update.mockResolvedValue({ ...mockSeat, status: 'reserved' });
+            redisService.getHoldingUser.mockResolvedValue('1');
+            redisService.releaseSeat.mockRejectedValue(new Error('Redis error'));
 
             await expect(service.reserveSeat('event1', 1, '1')).rejects.toThrow(ConflictException);
           });
@@ -199,12 +203,12 @@ describe('SeatReservationService', () => {
           const mockSeat = { id: '1', status: 'held', userId: '1', version: 1 };
           const updatedSeat = { ...mockSeat, status: 'available', userId: null, heldUntil: null };
 
-          (prismaService.seat.findFirst as jest.Mock).mockResolvedValue(mockSeat);
-          (prismaService.seat.update as jest.Mock).mockResolvedValue(updatedSeat);
+          prismaService.seat.findFirst.mockResolvedValue(mockSeat);
+          prismaService.seat.update.mockResolvedValue(updatedSeat);
 
           if (useRedis) {
-            (redisService.getHoldingUser as jest.Mock).mockResolvedValue('1');
-            (redisService.releaseSeat as jest.Mock).mockResolvedValue(true);
+            redisService.getHoldingUser.mockResolvedValue('1');
+            redisService.releaseSeat.mockResolvedValue(true);
           }
 
           const result = await service.releaseSeat('event1', 1, '1');
@@ -232,7 +236,7 @@ describe('SeatReservationService', () => {
         });
 
         it('should throw NotFoundException if seat is not found or not held/reserved by the user', async () => {
-          (prismaService.seat.findFirst as jest.Mock).mockResolvedValue(null);
+          prismaService.seat.findFirst.mockResolvedValue(null);
 
           await expect(service.releaseSeat('event1', 1, '1')).rejects.toThrow(
             NotFoundException,
@@ -242,10 +246,10 @@ describe('SeatReservationService', () => {
         if (useRedis) {
           it('should throw ConflictException when Redis fails to remove key', async () => {
             const mockSeat = { id: '1', status: 'held', userId: '1', version: 1 };
-            (prismaService.seat.findFirst as jest.Mock).mockResolvedValue(mockSeat);
-            (prismaService.seat.update as jest.Mock).mockResolvedValue({ ...mockSeat, status: 'available' });
-            (redisService.getHoldingUser as jest.Mock).mockResolvedValue('1');
-            (redisService.releaseSeat as jest.Mock).mockRejectedValue(new Error('Redis error'));
+            prismaService.seat.findFirst.mockResolvedValue(mockSeat);
+            prismaService.seat.update.mockResolvedValue({ ...mockSeat, status: 'available' });
+            redisService.getHoldingUser.mockResolvedValue('1');
+            redisService.releaseSeat.mockRejectedValue(new Error('Redis error'));
 
             await expect(service.releaseSeat('event1', 1, '1')).rejects.toThrow(ConflictException);
           });
