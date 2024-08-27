@@ -3,15 +3,16 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { SeatReservationService } from './seat-reservation.service';
 import { HoldSeatDto } from './dto/hold-seat.dto';
 import { ReleaseSeatDto } from './dto/release-seat.dto';
+import { ReserveSeatDto } from './dto/reserve-seat.dto';
 
 @ApiTags('seats')
-@Controller('seat-reservations')
+@Controller('events/:eventId')
 export class SeatReservationController {
   constructor(
     private readonly seatReservationService: SeatReservationService,
   ) {}
 
-  @Post(':eventId/hold')
+  @Post('hold')
   @HttpCode(200)
   @ApiOperation({ summary: 'Hold a seat for an event' })
   @ApiParam({ name: 'eventId', type: 'string' })
@@ -34,7 +35,8 @@ export class SeatReservationController {
       holdSeatDto.userId,
     );
   }
-  @Post(':eventId/reserve')
+
+  @Post('reserve')
   @HttpCode(200)
   @ApiOperation({ summary: 'Reserve a held seat for an event' })
   @ApiParam({ name: 'eventId', type: 'string' })
@@ -49,7 +51,7 @@ export class SeatReservationController {
   })
   async reserveSeat(
     @Param('eventId') eventId: string,
-    @Body() reserveSeatDto: HoldSeatDto,
+    @Body() reserveSeatDto: ReserveSeatDto,
   ) {
     return this.seatReservationService.reserveSeat(
       eventId,
@@ -58,7 +60,7 @@ export class SeatReservationController {
     );
   }
 
-  @Post(':eventId/release')
+  @Post('release')
   @HttpCode(200)
   @ApiOperation({ summary: 'Release a held or reserved seat' })
   @ApiParam({ name: 'eventId', type: 'string' })

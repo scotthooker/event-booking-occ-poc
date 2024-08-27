@@ -16,7 +16,10 @@ services:
        - /usr/src/app/node_modules
   db:
     image: postgres:16-alpine
+    ports:
+      - "5432:5432"
     environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/event_reservation?schema=public
       - POSTGRES_USER=user
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=event_reservation
@@ -29,6 +32,7 @@ services:
       ports:
             - "6379:6379"
       environment:
+            - DATABASE_URL=postgresql://user:password@db:5432/event_reservation?schema=public
             - REDIS_URL=redis://redis:6379
             - REDIS_PORT=6379
             - REDIS_HOST=redis

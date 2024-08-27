@@ -5,6 +5,7 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
+  binaryTargets = ["native"]
 }
 
 model User {
@@ -36,7 +37,7 @@ model Seat {
   heldUntil  DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  version    Int 
+  version    Int
   @@allow("read", true)
   @@allow("update", future().version == 1)
 

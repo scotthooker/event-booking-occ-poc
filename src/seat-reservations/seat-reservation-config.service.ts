@@ -1,5 +1,3 @@
-
-
 import { Injectable } from '@nestjs/common';
 
 export type SeatReservationStrategy = 'redis' | 'occ';
@@ -11,8 +9,6 @@ export class SeatReservationConfigService {
   setStrategy(strategy: SeatReservationStrategy) {
     this.strategy = strategy;
   }
-
-  
 
   getStrategy(): SeatReservationStrategy {
     return this.strategy;

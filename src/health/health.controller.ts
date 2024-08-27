@@ -3,7 +3,9 @@ import { SeatReservationService } from '../seat-reservations/seat-reservation.se
 
 @Controller('health')
 export class HealthController {
-  constructor(private readonly seatReservationService: SeatReservationService) {}
+  constructor(
+    private readonly seatReservationService: SeatReservationService,
+  ) {}
 
   @Get()
   async check() {
@@ -14,4 +16,3 @@ export class HealthController {
     };
   }
 }
-
