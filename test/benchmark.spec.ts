@@ -1,8 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppModule } from '../src/app.module';
 import { SeatReservationService } from '../src/seat-reservations/seat-reservation.service';
-import { PrismaService } from '../src/prisma/prisma.service';
-import { RedisService } from '../src/redis/redis.service';
 import { SeatReservationConfigService } from '../src/seat-reservations/seat-reservation-config.service';
 import * as process from 'node:process';
 process.env.REDIS_URL = 'redis://localhost:6379';
@@ -67,8 +65,8 @@ describe('Seat Reservation Benchmark', () => {
     seatReservationService = module.get<SeatReservationService>(
       SeatReservationService,
     );
-    prismaService = module.get<PrismaService>(PrismaService);
-    redisService = module.get<RedisService>(RedisService);
+    // prismaService = module.get<PrismaService>(PrismaService);
+    // redisService = module.get<RedisService>(RedisService);
     configService = module.get<SeatReservationConfigService>(
       SeatReservationConfigService,
     );
